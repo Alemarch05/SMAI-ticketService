@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\TicketController;
+use App\Http\Controllers\Api\CategoryController;
 use App\Http\Middleware\JwtMiddleware;
 
 
@@ -11,9 +12,12 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::middleware([JwtMiddleware::class])->group(function () {
+Route::post('/categories', [CategoryController::class, 'store']);
 
-Route::get('/tickets', [TicketController::class, 'index']);
+Route::middleware('auth:api')->group(function () {
+    
+    Route::get('/categories', [CategoryController::class, 'index']);
+    Route::get('/tickets', [TicketController::class, 'index']);
     Route::post('/tickets', [TicketController::class, 'store']);
     
 });
