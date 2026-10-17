@@ -20,6 +20,11 @@ class CategoryService
         return $this->categoryRepository->getActiveCategories();
     }
 
+    public function getAllCategories(): Collection
+    {
+        return $this->categoryRepository->getAll();
+    }
+
     public function createCategory(array $data): Category
     {
         return $this->categoryRepository->create($data);
@@ -29,4 +34,6 @@ class CategoryService
     {
         return $this->categoryRepository->findById($id);
     }
+
+
 }
