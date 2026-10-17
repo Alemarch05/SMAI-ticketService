@@ -37,16 +37,18 @@ return [
     |
     */
 
-    'guards' => [
-    'web' => [
-                'driver' => 'session',
-                'provider' => 'users',
-            ],
-            'api' => [
-                'driver' => 'jwt',
-                'provider' => 'users',
-            ],
+   'guards' => [
+        'api' => [
+            'driver' => 'jwt',
+            'provider' => 'jwt_users',
         ],
+    ],
+
+    'providers' => [
+        'jwt_users' => [
+            'driver' => 'custom_jwt_provider',
+        ],
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -65,17 +67,7 @@ return [
     |
     */
 
-    'providers' => [
-        'users' => [
-            'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', User::class),
-        ],
-
-        // 'users' => [
-        //     'driver' => 'database',
-        //     'table' => 'users',
-        // ],
-    ],
+  
 
     /*
     |--------------------------------------------------------------------------
