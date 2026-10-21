@@ -19,5 +19,10 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/tickets', [TicketController::class, 'index']);
     Route::post('/tickets', [TicketController::class, 'store']);
+
+    // Endpoints del Módulo C
+    Route::get('/tickets/{ticketId}/logs', [LogHistoryController::class, 'getLogs']);
+    Route::post('/tickets/logs', [LogHistoryController::class, 'storeLog']);
+    Route::get('/historical-cases', [LogHistoryController::class, 'getHistoricalCases']);
     
 });
