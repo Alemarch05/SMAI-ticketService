@@ -42,7 +42,7 @@ class TicketController extends Controller
         }
 
         $data = $request->all();
-        $data['user_id'] = $request->jwt_user_id;
+        $data['user_id'] = auth('api')->id();
 
         $ticket = $this->ticketService->createTicket($data);
 
