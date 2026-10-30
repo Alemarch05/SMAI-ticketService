@@ -38,16 +38,20 @@ return [
     */
 
    'guards' => [
+        'web' => [
+            'driver' => 'session',
+            'provider' => 'users',
+        ],
         'api' => [
             'driver' => 'jwt',
-            'provider' => 'jwt_users',
+            'provider' => 'users',
         ],
     ],
 
     'providers' => [
     'users' => [
-        'driver' => 'eloquent',
-        'model' => env('AUTH_MODEL', App\Models\User::class),
+        'driver' => 'custom_jwt_provider',
+        'model' => App\Models\User::class,
         ],
     ],
 
