@@ -19,6 +19,7 @@ Route::post('/categories', [CategoryController::class, 'store']);
 Route::middleware('auth:api')->group(function () {
     
     Route::get('/categories', [CategoryController::class, 'index']);
+    Route::get('/categories/{id}/diagnostic-tree', [CategoryController::class, 'getDiagnosticTree']);
     Route::get('/tickets', [TicketController::class, 'index']);
     Route::post('/tickets', [TicketController::class, 'store']);
 

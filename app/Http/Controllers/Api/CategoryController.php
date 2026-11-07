@@ -50,5 +50,21 @@ class CategoryController extends Controller
             'data' => $category
         ], 201);
     }
-    
+    public function getDiagnosticTree($id): JsonResponse
+    {
+        
+        $tree = config("diagnostics.{$id}");
+
+        if (!$tree) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Árbol de diagnóstico no encontrado para esta categoría.'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $tree
+        ], 200);
+    }
 }   
