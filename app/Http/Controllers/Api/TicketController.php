@@ -31,6 +31,7 @@ class TicketController extends Controller
         $validator = Validator::make($request->all(), [
             'location' => 'required|string|max:255',
             'category_id' => 'required|integer|exists:TK_categories,id',
+            'title' => 'nullable|string|max:255',
             'description' => 'nullable|string',
         ]);
 
