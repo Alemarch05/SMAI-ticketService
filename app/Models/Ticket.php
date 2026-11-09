@@ -16,6 +16,7 @@ class Ticket extends Model
         'user_id',
         'assigned_to',
         'category_id',
+        'location',
         'title',
         'description',
         'status',

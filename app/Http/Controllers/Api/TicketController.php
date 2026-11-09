@@ -29,9 +29,9 @@ class TicketController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'category_id' => 'required|integer',
-            'title' => 'required|string|max:100',
-            'description' => 'required|string',
+            'location' => 'required|string|max:255',
+            'category_id' => 'required|integer|exists:TK_categories,id',
+            'description' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
