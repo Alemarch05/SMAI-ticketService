@@ -32,4 +32,9 @@ class Ticket extends Model
             'level1_diagnostic' => 'array',
         ];
     }
+
+    public function diagnostic()
+    {
+        return $this->hasOne(TicketDiagnostic::class, 'ticket_id');
+    }   
 }

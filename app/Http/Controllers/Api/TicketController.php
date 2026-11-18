@@ -33,6 +33,8 @@ class TicketController extends Controller
             'category_id' => 'required|integer|exists:TK_categories,id',
             'title' => 'nullable|string|max:255',
             'description' => 'nullable|string',
+            'diagnostic_category_id' => 'nullable|integer|in:1,2,3,4',
+            'decisions' => 'nullable|array',
         ]);
 
         if ($validator->fails()) {
@@ -50,7 +52,7 @@ class TicketController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Ticket creado con éxito',
-            'data' => $ticket
+            'data' => $ticket->load('diagnostic')
         ], 201);
     }
 }   
