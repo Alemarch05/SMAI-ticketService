@@ -71,6 +71,7 @@ class TicketCrudTest extends TestCase
         $response = $this->withHeaders($this->authHeadersForUser(42))
             ->postJson('/api/tickets', [
                 'user_id' => 999, // Must be ignored in favor of JWT user
+                'user_name' => 'María Gómez',
                 'location' => 'Laboratorio 301',
                 'category_id' => $this->category->id,
                 'title' => 'Impresora desconectada',
@@ -82,6 +83,7 @@ class TicketCrudTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('message', 'Ticket creado con éxito')
             ->assertJsonPath('data.user_id', 42)
+            ->assertJsonPath('data.user_name', 'María Gómez')
             ->assertJsonPath('data.location', 'Laboratorio 301')
             ->assertJsonPath('data.status', Ticket::STATUS_PENDIENTE_DIAGNOSTICO)
             ->assertJsonPath('data.priority', Ticket::PRIORITY_ALTA)
@@ -118,7 +120,7 @@ class TicketCrudTest extends TestCase
         $response = $this->withHeaders($this->authHeadersForUser(42))
             ->postJson('/api/tickets', [
                 'category_id' => 99999,
-                'priority' => 'CRITICA',
+                'priority' => 'EXTREMA',
             ]);
 
         $response->assertStatus(422)

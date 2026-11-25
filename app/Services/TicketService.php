@@ -128,6 +128,7 @@ class TicketService
             'status' => $ticket->status,
             'priority' => $ticket->priority,
             'assigned_to' => $ticket->assigned_to,
+            'user_name' => $ticket->user_name,
             'location' => $ticket->location,
             'title' => $ticket->title,
             'description' => $ticket->description,
@@ -214,7 +215,7 @@ class TicketService
             $loggedSpecificChange = true;
         }
 
-        $generalFields = ['location', 'title', 'description', 'category_id', 'cause', 'solution', 'level1_diagnostic'];
+        $generalFields = ['user_name', 'location', 'title', 'description', 'category_id', 'cause', 'solution', 'level1_diagnostic'];
         $changedGeneralFields = array_values(array_filter(
             $generalFields,
             static fn (string $field): bool => array_key_exists($field, $submittedData)

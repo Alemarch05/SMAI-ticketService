@@ -120,6 +120,7 @@ class TicketController extends Controller implements HasMiddleware
             'category_id' => 'required|integer|exists:TK_categories,id',
             'title' => 'nullable|string|max:255',
             'description' => 'nullable|string',
+            'user_name' => 'sometimes|nullable|string|max:255',
             'priority' => ['sometimes', 'required', 'string', Rule::in(Ticket::PRIORITIES)],
             'assigned_to' => 'sometimes|nullable|integer|min:1',
             'level1_diagnostic' => 'sometimes|nullable|array',
@@ -267,6 +268,7 @@ class TicketController extends Controller implements HasMiddleware
             'category_id' => 'sometimes|required|integer|exists:TK_categories,id',
             'title' => 'sometimes|nullable|string|max:255',
             'description' => 'sometimes|nullable|string',
+            'user_name' => 'sometimes|nullable|string|max:255',
             'status' => ['sometimes', 'required', 'string', Rule::in(Ticket::STATUSES)],
             'priority' => ['sometimes', 'required', 'string', Rule::in(Ticket::PRIORITIES)],
             'assigned_to' => 'missing',
@@ -353,13 +355,48 @@ class TicketController extends Controller implements HasMiddleware
 
     private function normalizeUppercaseFields(array $input, array $fields): array
     {
+        // Alias aceptados desde el frontend (ej. "Alta Prioridad", "Crítica", "high") mapeados al enum BAJA/MEDIA/ALTA
+        $priorityAliases = [
+            'BAJO' => Ticket::PRIORITY_BAJA,
+            'LOW' => Ticket::PRIORITY_BAJA,
+            'BAJA PRIORIDAD' => Ticket::PRIORITY_BAJA,
+            'PRIORIDAD BAJA' => Ticket::PRIORITY_BAJA,
+            'MEDIO' => Ticket::PRIORITY_MEDIA,
+            'MEDIUM' => Ticket::PRIORITY_MEDIA,
+            'MEDIA PRIORIDAD' => Ticket::PRIORITY_MEDIA,
+            'PRIORIDAD MEDIA' => Ticket::PRIORITY_MEDIA,
+            'ALTO' => Ticket::PRIORITY_ALTA,
+            'HIGH' => Ticket::PRIORITY_ALTA,
+            'ALTA PRIORIDAD' => Ticket::PRIORITY_ALTA,
+            'PRIORIDAD ALTA' => Ticket::PRIORITY_ALTA,
+            'CRITICA' => Ticket::PRIORITY_ALTA,
+            'CRITICO' => Ticket::PRIORITY_ALTA,
+            'CRITICAL' => Ticket::PRIORITY_ALTA,
+            'URGENTE' => Ticket::PRIORITY_ALTA,
+        ];
+
         foreach ($fields as $field) {
             if (isset($input[$field]) && is_string($input[$field])) {
-                $input[$field] = strtoupper(trim($input[$field]));
+                $normalized = $this->normalizeEnumText($input[$field]);
+                if ($field === 'priority' && isset($priorityAliases[$normalized])) {
+                    $normalized = $priorityAliases[$normalized];
+                }
+                $input[$field] = $normalized;
             }
         }
 
         return $input;
+    }
+
+    /**
+     * Convierte a mayúsculas, elimina tildes y espacios repetidos (ej. "Crítica " => "CRITICA").
+     */
+    private function normalizeEnumText(string $value): string
+    {
+        $upper = mb_strtoupper(trim($value), 'UTF-8');
+        $upper = strtr($upper, ['Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U', 'Ü' => 'U']);
+
+        return (string) preg_replace('/\s+/', ' ', $upper);
     }
 
     private function prepareFilterInput(array $query): array
