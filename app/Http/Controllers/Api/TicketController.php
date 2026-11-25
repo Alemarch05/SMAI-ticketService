@@ -167,6 +167,33 @@ class TicketController extends Controller implements HasMiddleware
     }
 
     /**
+     * Assign a ticket to the authenticated support agent and escalate it.
+     */
+    public function assignToSupport(int|string $ticketId): JsonResponse
+    {
+        $userId = $this->authenticatedUserId();
+        if ($userId === null) {
+            return $this->unauthenticatedResponse();
+        }
+
+        $parsedTicketId = $this->parseTicketId($ticketId);
+        if ($parsedTicketId === null) {
+            return $this->notFoundResponse();
+        }
+
+        $ticket = $this->ticketService->assignToSupport($parsedTicketId, $userId);
+        if (! $ticket) {
+            return $this->notFoundResponse();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Ticket asignado al equipo de soporte y escalado',
+            'data' => $ticket,
+        ], 200);
+    }
+
+    /**
      * Update ticket status, priority, description, or administrative details.
      */
     public function update(Request $request, int|string $id): JsonResponse

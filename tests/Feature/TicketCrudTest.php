@@ -265,6 +265,53 @@ class TicketCrudTest extends TestCase
             ->assertJsonPath('success', false);
     }
 
+    public function test_support_agent_can_assign_ticket_to_self_and_escalate_it(): void
+    {
+        $ticket = Ticket::create([
+            'user_id' => 10,
+            'category_id' => $this->category->id,
+            'location' => 'Sala de soporte',
+            'title' => 'Falla crítica',
+            'status' => Ticket::STATUS_PENDIENTE_DIAGNOSTICO,
+        ]);
+
+        $this->withHeaders($this->authHeadersForUser(77))
+            ->postJson("/api/tickets/{$ticket->id}/assign", [
+                'assigned_to' => 999,
+                'status' => Ticket::STATUS_EN_PROCESO,
+            ])
+            ->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.assigned_to', 77)
+            ->assertJsonPath('data.status', Ticket::STATUS_ESCALADO);
+
+        $this->assertDatabaseHas('TK_tickets', [
+            'id' => $ticket->id,
+            'assigned_to' => 77,
+            'status' => Ticket::STATUS_ESCALADO,
+        ]);
+        $this->assertDatabaseHas('TK_ticket_logs', [
+            'ticket_id' => $ticket->id,
+            'user_id' => 77,
+            'action' => 'ASIGNACION',
+        ]);
+        $this->assertDatabaseHas('TK_ticket_logs', [
+            'ticket_id' => $ticket->id,
+            'user_id' => 77,
+            'action' => 'ESCALAMIENTO',
+        ]);
+    }
+
+    public function test_assign_ticket_requires_authentication_and_returns_not_found(): void
+    {
+        $this->postJson('/api/tickets/1/assign')->assertStatus(401);
+
+        $this->withHeaders($this->authHeadersForUser(77))
+            ->postJson('/api/tickets/999999/assign')
+            ->assertStatus(404)
+            ->assertJsonPath('success', false);
+    }
+
     public function test_update_modifies_status_priority_description_and_logs_traceability(): void
     {
         $ticket = Ticket::create([

@@ -16,6 +16,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/categories/{id}/diagnostic-tree', [CategoryController::class, 'getDiagnosticTree']);
 
+    Route::post('/tickets/{ticketId}/assign', [TicketController::class, 'assignToSupport']);
     Route::apiResource('tickets', TicketController::class);
 
     // Endpoints del Módulo C

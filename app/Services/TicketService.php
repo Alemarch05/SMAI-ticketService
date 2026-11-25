@@ -69,6 +69,14 @@ class TicketService
         });
     }
 
+    public function assignToSupport(int $ticketId, int $supportUserId): ?Ticket
+    {
+        return $this->updateTicket($ticketId, [
+            'assigned_to' => $supportUserId,
+            'status' => Ticket::STATUS_ESCALADO,
+        ], $supportUserId);
+    }
+
     public function updateTicket(int $id, array $data, int $actorUserId): ?Ticket
     {
         $ticket = $this->ticketRepository->findById($id);
