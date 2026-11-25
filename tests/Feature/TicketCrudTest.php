@@ -312,6 +312,150 @@ class TicketCrudTest extends TestCase
             ->assertJsonPath('success', false);
     }
 
+    public function test_assigned_user_can_record_ticket_cause_and_solution(): void
+    {
+        $ticket = Ticket::create([
+            'user_id' => 10,
+            'assigned_to' => 77,
+            'category_id' => $this->category->id,
+            'location' => 'Sala de soporte',
+            'title' => 'Equipo sin energía',
+            'status' => Ticket::STATUS_ESCALADO,
+        ]);
+
+        $this->withHeaders($this->authHeadersForUser(77))
+            ->patchJson("/api/tickets/{$ticket->id}/resolution", [
+                'cause' => 'Fuente de alimentación defectuosa',
+                'solution' => 'Se reemplazó la fuente de alimentación.',
+                'assigned_to' => 88,
+                'status' => Ticket::STATUS_CERRADO,
+            ])
+            ->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.cause', 'Fuente de alimentación defectuosa')
+            ->assertJsonPath('data.solution', 'Se reemplazó la fuente de alimentación.')
+            ->assertJsonPath('data.assigned_to', 77)
+            ->assertJsonPath('data.status', Ticket::STATUS_ESCALADO);
+
+        $this->assertDatabaseHas('TK_tickets', [
+            'id' => $ticket->id,
+            'assigned_to' => 77,
+            'cause' => 'Fuente de alimentación defectuosa',
+            'solution' => 'Se reemplazó la fuente de alimentación.',
+            'status' => Ticket::STATUS_ESCALADO,
+        ]);
+        $this->assertDatabaseHas('TK_ticket_logs', [
+            'ticket_id' => $ticket->id,
+            'user_id' => 77,
+            'action' => 'ACTUALIZACION',
+        ]);
+    }
+
+    public function test_only_the_assigned_user_can_record_ticket_resolution(): void
+    {
+        $ticket = Ticket::create([
+            'user_id' => 10,
+            'assigned_to' => 88,
+            'category_id' => $this->category->id,
+            'location' => 'Laboratorio',
+        ]);
+
+        $this->withHeaders($this->authHeadersForUser(77))
+            ->patchJson("/api/tickets/{$ticket->id}/resolution", [
+                'cause' => 'Cable desconectado',
+                'solution' => 'Se conectó el cable.',
+            ])
+            ->assertStatus(403)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'Solo el usuario asignado puede registrar la causa y la solución.');
+
+        $this->assertDatabaseHas('TK_tickets', [
+            'id' => $ticket->id,
+            'assigned_to' => 88,
+            'cause' => null,
+            'solution' => null,
+        ]);
+
+        $unassignedTicket = Ticket::create([
+            'user_id' => 10,
+            'category_id' => $this->category->id,
+            'location' => 'Sala sin asignar',
+        ]);
+
+        $this->withHeaders($this->authHeadersForUser(77))
+            ->patchJson("/api/tickets/{$unassignedTicket->id}/resolution", [
+                'cause' => 'Falla de red',
+                'solution' => 'Se reinició el router.',
+            ])
+            ->assertStatus(403);
+
+        $this->assertDatabaseHas('TK_tickets', [
+            'id' => $unassignedTicket->id,
+            'assigned_to' => null,
+            'cause' => null,
+            'solution' => null,
+        ]);
+    }
+
+    public function test_resolution_endpoint_requires_authentication_and_both_fields(): void
+    {
+        $ticket = Ticket::create([
+            'user_id' => 10,
+            'assigned_to' => 77,
+            'category_id' => $this->category->id,
+            'location' => 'Oficina',
+        ]);
+
+        $this->patchJson("/api/tickets/{$ticket->id}/resolution", [])
+            ->assertStatus(401);
+
+        $this->withHeaders($this->authHeadersForUser(77))
+            ->patchJson("/api/tickets/{$ticket->id}/resolution", [])
+            ->assertStatus(422)
+            ->assertJsonStructure(['errors' => ['cause', 'solution']]);
+
+        $this->withHeaders($this->authHeadersForUser(77))
+            ->patchJson("/api/tickets/{$ticket->id}/resolution", [
+                'cause' => str_repeat('a', 256),
+                'solution' => 'Solución registrada.',
+            ])
+            ->assertStatus(422)
+            ->assertJsonStructure(['errors' => ['cause']]);
+
+        $this->withHeaders($this->authHeadersForUser(77))
+            ->patchJson('/api/tickets/999999/resolution', [
+                'cause' => 'Falla eléctrica',
+                'solution' => 'Se reemplazó el adaptador.',
+            ])
+            ->assertStatus(404);
+    }
+
+    public function test_general_ticket_update_cannot_change_assignee_cause_or_solution(): void
+    {
+        $ticket = Ticket::create([
+            'user_id' => 10,
+            'assigned_to' => 88,
+            'category_id' => $this->category->id,
+            'location' => 'Recepción',
+        ]);
+
+        $this->withHeaders($this->authHeadersForUser(77))
+            ->patchJson("/api/tickets/{$ticket->id}", [
+                'assigned_to' => 77,
+                'cause' => 'Intento de cambiar la causa',
+                'solution' => 'Intento de cambiar la solución',
+            ])
+            ->assertStatus(422)
+            ->assertJsonStructure(['errors' => ['assigned_to', 'cause', 'solution']]);
+
+        $this->assertDatabaseHas('TK_tickets', [
+            'id' => $ticket->id,
+            'assigned_to' => 88,
+            'cause' => null,
+            'solution' => null,
+        ]);
+    }
+
     public function test_update_modifies_status_priority_description_and_logs_traceability(): void
     {
         $ticket = Ticket::create([
@@ -326,13 +470,17 @@ class TicketCrudTest extends TestCase
 
         $supportHeaders = $this->authHeadersForUser(77);
 
+        $this->withHeaders($supportHeaders)
+            ->postJson("/api/tickets/{$ticket->id}/assign")
+            ->assertStatus(200)
+            ->assertJsonPath('data.assigned_to', 77);
+
         $response = $this->withHeaders($supportHeaders)
             ->putJson("/api/tickets/{$ticket->id}", [
                 'user_id' => 999, // Creator must never be overwritten
                 'status' => Ticket::STATUS_EN_PROCESO,
                 'priority' => Ticket::PRIORITY_ALTA,
                 'description' => 'Latencia alta afectando todo el piso',
-                'assigned_to' => 77,
                 'comment' => 'Atendiendo incidente prioritario',
             ]);
 
@@ -369,11 +517,10 @@ class TicketCrudTest extends TestCase
         $this->withHeaders($supportHeaders)
             ->patchJson("/api/tickets/{$ticket->id}", [
                 'status' => Ticket::STATUS_ESCALADO,
-                'assigned_to' => null,
             ])
             ->assertStatus(200)
             ->assertJsonPath('data.status', Ticket::STATUS_ESCALADO)
-            ->assertJsonPath('data.assigned_to', null);
+            ->assertJsonPath('data.assigned_to', 77);
 
         $this->assertDatabaseHas('TK_ticket_logs', [
             'ticket_id' => $ticket->id,
@@ -389,7 +536,6 @@ class TicketCrudTest extends TestCase
         $this->withHeaders($supportHeaders)
             ->patchJson("/api/tickets/{$ticket->id}", [
                 'status' => Ticket::STATUS_CERRADO,
-                'solution' => 'Se reinició el switch principal',
             ])
             ->assertStatus(200)
             ->assertJsonPath('data.status', Ticket::STATUS_CERRADO);

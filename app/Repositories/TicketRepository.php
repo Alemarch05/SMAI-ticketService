@@ -28,6 +28,11 @@ class TicketRepository
         return Ticket::with($relations)->find($id);
     }
 
+    public function findByIdForUpdate(int $id): ?Ticket
+    {
+        return Ticket::query()->lockForUpdate()->find($id);
+    }
+
     public function create(array $data): Ticket
     {
         return Ticket::create($data);

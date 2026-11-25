@@ -6,6 +6,7 @@ use App\Models\Ticket;
 use App\Models\TicketDiagnostic;
 use App\Repositories\TicketLogRepository;
 use App\Repositories\TicketRepository;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -77,6 +78,28 @@ class TicketService
         ], $supportUserId);
     }
 
+    public function updateAssignedTicketResolution(int $ticketId, array $data, int $actorUserId): ?Ticket
+    {
+        return DB::transaction(function () use ($ticketId, $data, $actorUserId) {
+            $ticket = $this->ticketRepository->findByIdForUpdate($ticketId);
+
+            if (! $ticket) {
+                return null;
+            }
+
+            if ($ticket->assigned_to !== $actorUserId) {
+                throw new AuthorizationException('Solo el usuario asignado puede registrar la causa y la solución.');
+            }
+
+            $original = $this->ticketSnapshot($ticket);
+            $updatedTicket = $this->ticketRepository->update($ticket, $data);
+
+            $this->recordUpdateLogs($updatedTicket, $original, $data, $actorUserId, null);
+
+            return $updatedTicket->load(['category:id,name,description', 'logs', 'diagnostic']);
+        });
+    }
+
     public function updateTicket(int $id, array $data, int $actorUserId): ?Ticket
     {
         $ticket = $this->ticketRepository->findById($id);
@@ -89,18 +112,7 @@ class TicketService
             $userComment = isset($data['comment']) ? trim((string) $data['comment']) : null;
             unset($data['comment']);
 
-            $original = [
-                'status' => $ticket->status,
-                'priority' => $ticket->priority,
-                'assigned_to' => $ticket->assigned_to,
-                'location' => $ticket->location,
-                'title' => $ticket->title,
-                'description' => $ticket->description,
-                'category_id' => $ticket->category_id,
-                'cause' => $ticket->cause,
-                'solution' => $ticket->solution,
-                'level1_diagnostic' => $ticket->level1_diagnostic,
-            ];
+            $original = $this->ticketSnapshot($ticket);
 
             $updatedTicket = $this->ticketRepository->update($ticket, $data);
 
@@ -108,6 +120,22 @@ class TicketService
 
             return $updatedTicket->load(['category:id,name,description', 'logs', 'diagnostic']);
         });
+    }
+
+    private function ticketSnapshot(Ticket $ticket): array
+    {
+        return [
+            'status' => $ticket->status,
+            'priority' => $ticket->priority,
+            'assigned_to' => $ticket->assigned_to,
+            'location' => $ticket->location,
+            'title' => $ticket->title,
+            'description' => $ticket->description,
+            'category_id' => $ticket->category_id,
+            'cause' => $ticket->cause,
+            'solution' => $ticket->solution,
+            'level1_diagnostic' => $ticket->level1_diagnostic,
+        ];
     }
 
     public function deleteTicket(int $id, int $actorUserId): bool

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Ticket;
 use App\Services\TicketService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -194,6 +195,57 @@ class TicketController extends Controller implements HasMiddleware
     }
 
     /**
+     * Record the cause and solution for a ticket assigned to the authenticated user.
+     */
+    public function updateResolution(Request $request, int|string $ticketId): JsonResponse
+    {
+        $userId = $this->authenticatedUserId();
+        if ($userId === null) {
+            return $this->unauthenticatedResponse();
+        }
+
+        $parsedTicketId = $this->parseTicketId($ticketId);
+        if ($parsedTicketId === null) {
+            return $this->notFoundResponse();
+        }
+
+        $validator = Validator::make($request->all(), [
+            'cause' => 'required|string|max:255',
+            'solution' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $ticket = $this->ticketService->updateAssignedTicketResolution(
+                $parsedTicketId,
+                $validator->validated(),
+                $userId
+            );
+        } catch (AuthorizationException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 403);
+        }
+
+        if (! $ticket) {
+            return $this->notFoundResponse();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Causa y solución registradas con éxito',
+            'data' => $ticket,
+        ], 200);
+    }
+
+    /**
      * Update ticket status, priority, description, or administrative details.
      */
     public function update(Request $request, int|string $id): JsonResponse
@@ -217,10 +269,10 @@ class TicketController extends Controller implements HasMiddleware
             'description' => 'sometimes|nullable|string',
             'status' => ['sometimes', 'required', 'string', Rule::in(Ticket::STATUSES)],
             'priority' => ['sometimes', 'required', 'string', Rule::in(Ticket::PRIORITIES)],
-            'assigned_to' => 'sometimes|nullable|integer|min:1',
+            'assigned_to' => 'missing',
             'level1_diagnostic' => 'sometimes|nullable|array',
-            'cause' => 'sometimes|nullable|string|max:255',
-            'solution' => 'sometimes|nullable|string',
+            'cause' => 'missing',
+            'solution' => 'missing',
             'comment' => 'sometimes|nullable|string|max:1000',
         ]);
 
