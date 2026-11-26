@@ -11,6 +11,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -43,6 +44,19 @@ class TicketService
 
         $data['status'] = Ticket::STATUS_PENDIENTE_DIAGNOSTICO;
         $data['priority'] = $data['priority'] ?? Ticket::PRIORITY_MEDIA;
+
+        // Consultar el motor IA en Python antes o dentro de la creación
+        // Priorizamos decisions (árbol de diagnóstico) o level1_diagnostic si viene en el payload
+        $diagnosticPayload = !empty($decisions)
+            ? $decisions
+            : ($data['level1_diagnostic'] ?? null);
+
+        $data['ai_recommendations'] = $this->fetchAiRecommendations(
+            categoryId: (int) ($diagnosticCategoryId ?? $data['category_id']),
+            title: $data['title'] ?? '',
+            description: $data['description'] ?? ($data['title'] ?? ''),
+            decisions: $diagnosticPayload
+        );
 
         return DB::transaction(function () use ($data, $decisions, $diagnosticCategoryId) {
             $ticket = $this->ticketRepository->create($data);
@@ -291,5 +305,64 @@ class TicketService
         }
 
         return "{$baseMessage}. {$userComment}";
+    }
+
+    private function fetchAiRecommendations(
+        int $categoryId,
+        string $title,
+        string $description,
+        ?array $decisions = null
+    ): array {
+        $textDescription = trim($description) !== '' ? $description : trim($title);
+
+        if ($textDescription === '') {
+            return [
+                'status'          => 'insufficient_data',
+                'message'         => 'El ticket no contiene título ni descripción suficiente para analizar.',
+                'category_id'     => $categoryId,
+                'recommendations' => [],
+            ];
+        }
+
+        try {
+            $aiBaseUrl = rtrim((string) env('SMAI_AI_URL', 'http://127.0.0.1:8002'), '/');
+
+            $response = Http::timeout(4)
+                ->acceptJson()
+                ->post("{$aiBaseUrl}/predict", [
+                    'category_id' => $categoryId,
+                    'title'       => $title,
+                    'description' => $textDescription,
+                    'decisions'   => $decisions,
+                    'top_k'       => 3,
+                ]);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::warning('SMAI AI /predict devolvió un código no exitoso', [
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
+
+            return [
+                'status'          => 'error',
+                'message'         => 'No se pudieron obtener recomendaciones del servicio IA.',
+                'category_id'     => $categoryId,
+                'recommendations' => [],
+            ];
+        } catch (\Throwable $exception) {
+            Log::warning('No se pudo conectar con el servicio Python SMAI AI', [
+                'error' => $exception->getMessage(),
+            ]);
+
+            return [
+                'status'          => 'unavailable',
+                'message'         => 'Servicio de recomendación IA no disponible al momento de crear el ticket.',
+                'category_id'     => $categoryId,
+                'recommendations' => [],
+            ];
+        }
     }
 }
