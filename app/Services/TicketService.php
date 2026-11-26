@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Ticket;
 use App\Models\TicketDiagnostic;
+use App\Repositories\HistoricalCaseRepository;
 use App\Repositories\TicketLogRepository;
 use App\Repositories\TicketRepository;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -17,6 +18,7 @@ class TicketService
     public function __construct(
         protected TicketRepository $ticketRepository,
         protected TicketLogRepository $ticketLogRepository,
+        protected HistoricalCaseRepository $historicalCaseRepository,
     ) {
     }
 
@@ -92,7 +94,16 @@ class TicketService
             }
 
             $original = $this->ticketSnapshot($ticket);
+            $ticket->loadMissing('category:id,name');
+            $data['status'] = Ticket::STATUS_RESUELTO;
             $updatedTicket = $this->ticketRepository->update($ticket, $data);
+
+            $this->historicalCaseRepository->create([
+                'ticket_id' => $ticket->id,
+                'problem_type' => $ticket->title ?: $ticket->category->name,
+                'cause' => $data['cause'],
+                'solution' => $data['solution'],
+            ]);
 
             $this->recordUpdateLogs($updatedTicket, $original, $data, $actorUserId, null);
 

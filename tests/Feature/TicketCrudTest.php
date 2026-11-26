@@ -337,19 +337,31 @@ class TicketCrudTest extends TestCase
             ->assertJsonPath('data.cause', 'Fuente de alimentación defectuosa')
             ->assertJsonPath('data.solution', 'Se reemplazó la fuente de alimentación.')
             ->assertJsonPath('data.assigned_to', 77)
-            ->assertJsonPath('data.status', Ticket::STATUS_ESCALADO);
+            ->assertJsonPath('data.status', Ticket::STATUS_RESUELTO);
 
         $this->assertDatabaseHas('TK_tickets', [
             'id' => $ticket->id,
             'assigned_to' => 77,
             'cause' => 'Fuente de alimentación defectuosa',
             'solution' => 'Se reemplazó la fuente de alimentación.',
-            'status' => Ticket::STATUS_ESCALADO,
+            'status' => Ticket::STATUS_RESUELTO,
         ]);
         $this->assertDatabaseHas('TK_ticket_logs', [
             'ticket_id' => $ticket->id,
             'user_id' => 77,
             'action' => 'ACTUALIZACION',
+        ]);
+        $this->assertDatabaseHas('TK_ticket_logs', [
+            'ticket_id' => $ticket->id,
+            'user_id' => 77,
+            'action' => 'CAMBIO_ESTADO',
+            'comment' => 'Estado actualizado de ESCALADO a RESUELTO',
+        ]);
+        $this->assertDatabaseHas('TK_historical_cases', [
+            'ticket_id' => $ticket->id,
+            'problem_type' => 'Equipo sin energía',
+            'cause' => 'Fuente de alimentación defectuosa',
+            'solution' => 'Se reemplazó la fuente de alimentación.',
         ]);
     }
 
@@ -377,6 +389,9 @@ class TicketCrudTest extends TestCase
             'cause' => null,
             'solution' => null,
         ]);
+        $this->assertDatabaseMissing('TK_historical_cases', [
+            'ticket_id' => $ticket->id,
+        ]);
 
         $unassignedTicket = Ticket::create([
             'user_id' => 10,
@@ -396,6 +411,9 @@ class TicketCrudTest extends TestCase
             'assigned_to' => null,
             'cause' => null,
             'solution' => null,
+        ]);
+        $this->assertDatabaseMissing('TK_historical_cases', [
+            'ticket_id' => $unassignedTicket->id,
         ]);
     }
 
