@@ -83,6 +83,19 @@ class TicketController extends Controller implements HasMiddleware
         }
         unset($filters['mine']);
 
+        $requestedStatuses = $filters['status'] ?? [];
+        $isHistoryQuery = ! empty($requestedStatuses)
+            && empty(array_diff($requestedStatuses, [Ticket::STATUS_RESUELTO, Ticket::STATUS_CERRADO]));
+
+        $role = $this->authenticatedUserRole();
+        if ($role === 'cliente') {
+            $filters['user_id'] = $userId;
+            unset($filters['assigned_to'], $filters['unassigned']);
+        } elseif ($role === 'soporte' && $isHistoryQuery) {
+            $filters['assigned_to'] = $userId;
+            unset($filters['user_id'], $filters['unassigned']);
+        }   
+
         $tickets = $this->ticketService->getAllTickets($filters);
 
         if ($tickets instanceof LengthAwarePaginator) {
@@ -343,6 +356,25 @@ class TicketController extends Controller implements HasMiddleware
         $userId = auth('api')->id();
 
         return $userId !== null ? (int) $userId : null;
+    }
+
+    private function authenticatedUserRole(): ?string
+    {
+        try {
+            $role = auth('api')->payload()->get('role');
+            if (is_string($role) && $role !== '') {
+                return strtolower(trim($role));
+            }
+        } catch (\Throwable) {
+            // Si el JWT no trae el claim 'role', se respetan los filtros enviados por Angular
+        }
+
+        $user = auth('api')->user();
+        if ($user && isset($user->role) && is_string($user->role)) {
+            return strtolower(trim($user->role));
+        }
+
+        return null;
     }
 
     private function parseTicketId(int|string $id): ?int
