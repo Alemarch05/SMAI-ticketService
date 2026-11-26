@@ -16,5 +16,6 @@ class HistoricalCase extends Model
         'problem_type',
         'cause',
         'solution',
+        'standard_solution',
     ];
 }

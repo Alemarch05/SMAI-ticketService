@@ -56,6 +56,7 @@ class TicketCrudTest extends TestCase
 
         $this->getJson('/api/tickets')->assertStatus(401);
         $this->postJson('/api/tickets', [])->assertStatus(401);
+        $this->getJson("/api/categories/{$this->category->id}/standard-solutions")->assertStatus(401);
         $this->getJson("/api/tickets/{$ticket->id}")->assertStatus(401);
         $this->putJson("/api/tickets/{$ticket->id}", ['description' => 'Actualizado'])->assertStatus(401);
         $this->patchJson("/api/tickets/{$ticket->id}", ['priority' => 'ALTA'])->assertStatus(401);
@@ -329,6 +330,7 @@ class TicketCrudTest extends TestCase
             ->patchJson("/api/tickets/{$ticket->id}/resolution", [
                 'cause' => 'Fuente de alimentación defectuosa',
                 'solution' => 'Se reemplazó la fuente de alimentación.',
+                'standard_solution' => 'Verifiqué que el modo avión estuviera apagado y revisé el cable Ethernet.',
                 'assigned_to' => 88,
                 'status' => Ticket::STATUS_CERRADO,
             ])
@@ -362,7 +364,76 @@ class TicketCrudTest extends TestCase
             'problem_type' => 'Equipo sin energía',
             'cause' => 'Fuente de alimentación defectuosa',
             'solution' => 'Se reemplazó la fuente de alimentación.',
+            'standard_solution' => 'Verifiqué que el modo avión estuviera apagado y revisé el cable Ethernet.',
         ]);
+    }
+
+    public function test_resolution_accepts_an_optional_standard_solution(): void
+    {
+        $ticket = Ticket::create([
+            'user_id' => 10,
+            'assigned_to' => 77,
+            'category_id' => $this->category->id,
+            'location' => 'Sala de soporte',
+            'status' => Ticket::STATUS_ESCALADO,
+        ]);
+
+        $this->withHeaders($this->authHeadersForUser(77))
+            ->patchJson("/api/tickets/{$ticket->id}/resolution", [
+                'cause' => 'Cable Ethernet desconectado',
+                'solution' => 'Se conectó el cable.',
+                'standard_solution' => null,
+            ])
+            ->assertStatus(200)
+            ->assertJsonPath('data.status', Ticket::STATUS_RESUELTO);
+
+        $this->assertDatabaseHas('TK_historical_cases', [
+            'ticket_id' => $ticket->id,
+            'problem_type' => 'Fallo de Red o Conexión',
+            'cause' => 'Cable Ethernet desconectado',
+            'solution' => 'Se conectó el cable.',
+            'standard_solution' => null,
+        ]);
+    }
+
+    public function test_resolution_rejects_a_standard_solution_from_another_category(): void
+    {
+        $ticket = Ticket::create([
+            'user_id' => 10,
+            'assigned_to' => 77,
+            'category_id' => $this->category->id,
+            'location' => 'Sala de soporte',
+            'status' => Ticket::STATUS_ESCALADO,
+        ]);
+
+        $this->withHeaders($this->authHeadersForUser(77))
+            ->patchJson("/api/tickets/{$ticket->id}/resolution", [
+                'cause' => 'Cable Ethernet desconectado',
+                'solution' => 'Se conectó el cable.',
+                'standard_solution' => 'Limpié y reinserté las memorias RAM y probé con otra fuente de poder.',
+            ])
+            ->assertStatus(422)
+            ->assertJsonStructure(['errors' => ['standard_solution']]);
+
+        $this->assertDatabaseHas('TK_tickets', [
+            'id' => $ticket->id,
+            'status' => Ticket::STATUS_ESCALADO,
+            'cause' => null,
+            'solution' => null,
+        ]);
+        $this->assertDatabaseMissing('TK_historical_cases', [
+            'ticket_id' => $ticket->id,
+        ]);
+    }
+
+    public function test_standard_solution_options_are_available_for_a_category(): void
+    {
+        $this->withHeaders($this->authHeadersForUser(77))
+            ->getJson("/api/categories/{$this->category->id}/standard-solutions")
+            ->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.0', 'Verifiqué que el modo avión estuviera apagado y revisé el cable Ethernet.')
+            ->assertJsonCount(3, 'data');
     }
 
     public function test_only_the_assigned_user_can_record_ticket_resolution(): void

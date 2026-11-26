@@ -12,6 +12,9 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class TicketService
 {
@@ -95,6 +98,29 @@ class TicketService
 
             $original = $this->ticketSnapshot($ticket);
             $ticket->loadMissing('category:id,name');
+            $standardSolutions = config('ticket_standard_solutions', []);
+            $availableStandardSolutions = $standardSolutions[$ticket->category->name] ?? [];
+            $standardSolutionValidator = Validator::make(
+                ['standard_solution' => $data['standard_solution'] ?? null],
+                [
+                    'standard_solution' => [
+                        'nullable',
+                        'string',
+                        'max:255',
+                        Rule::in($availableStandardSolutions),
+                    ],
+                ],
+                [
+                    'standard_solution.in' => 'La solución estandarizada no corresponde a la categoría del ticket.',
+                ]
+            );
+
+            if ($standardSolutionValidator->fails()) {
+                throw new ValidationException($standardSolutionValidator);
+            }
+
+            $standardSolution = $data['standard_solution'] ?? null;
+            unset($data['standard_solution']);
             $data['status'] = Ticket::STATUS_RESUELTO;
             $updatedTicket = $this->ticketRepository->update($ticket, $data);
 
@@ -103,6 +129,7 @@ class TicketService
                 'problem_type' => $ticket->title ?: $ticket->category->name,
                 'cause' => $data['cause'],
                 'solution' => $data['solution'],
+                'standard_solution' => $standardSolution,
             ]);
 
             $this->recordUpdateLogs($updatedTicket, $original, $data, $actorUserId, null);

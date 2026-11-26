@@ -50,9 +50,10 @@ class CategoryController extends Controller
             'data' => $category
         ], 201);
     }
+
     public function getDiagnosticTree($id): JsonResponse
     {
-        
+
         $tree = config("diagnostics.{$id}");
 
         if (!$tree) {
@@ -67,4 +68,23 @@ class CategoryController extends Controller
             'data' => $tree
         ], 200);
     }
-}   
+
+    public function getStandardSolutions(int $id): JsonResponse
+    {
+        $category = $this->categoryService->findCategoryById($id);
+
+        if (! $category) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Categoría no encontrada.',
+            ], 404);
+        }
+
+        $standardSolutions = config('ticket_standard_solutions', []);
+
+        return response()->json([
+            'success' => true,
+            'data' => $standardSolutions[$category->name] ?? [],
+        ], 200);
+    }
+}

@@ -13,6 +13,7 @@ use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class TicketController extends Controller implements HasMiddleware
 {
@@ -213,6 +214,7 @@ class TicketController extends Controller implements HasMiddleware
         $validator = Validator::make($request->all(), [
             'cause' => 'required|string|max:255',
             'solution' => 'required|string',
+            'standard_solution' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -233,6 +235,11 @@ class TicketController extends Controller implements HasMiddleware
                 'success' => false,
                 'message' => $exception->getMessage(),
             ], 403);
+        } catch (ValidationException $exception) {
+            return response()->json([
+                'success' => false,
+                'errors' => $exception->errors(),
+            ], 422);
         }
 
         if (! $ticket) {

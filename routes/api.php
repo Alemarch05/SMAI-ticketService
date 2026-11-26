@@ -15,6 +15,7 @@ Route::post('/categories', [CategoryController::class, 'store']);
 Route::middleware('auth:api')->group(function () {
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/categories/{id}/diagnostic-tree', [CategoryController::class, 'getDiagnosticTree']);
+    Route::get('/categories/{id}/standard-solutions', [CategoryController::class, 'getStandardSolutions']);
 
     Route::post('/tickets/{ticketId}/assign', [TicketController::class, 'assignToSupport']);
     Route::patch('/tickets/{ticketId}/resolution', [TicketController::class, 'updateResolution']);
