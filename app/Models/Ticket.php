@@ -54,6 +54,7 @@ class Ticket extends Model
         'status',
         'priority',
         'level1_diagnostic',
+        'ai_recommendations',
         'cause',
         'solution',
     ];
@@ -65,6 +66,7 @@ class Ticket extends Model
             'assigned_to' => 'integer',
             'category_id' => 'integer',
             'level1_diagnostic' => 'array',
+            'ai_recommendations' => 'array',
         ];
     }
 
